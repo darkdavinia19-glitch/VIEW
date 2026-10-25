@@ -1,0 +1,6 @@
+{
+  "name": "FaucetFlow — Crypto Faucet & Rewards Platform",
+  "description": "Interactive crypto faucet platform with atomic claims, cooldown timers, multi-currency ledger, referral program, and full architectural code audit.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

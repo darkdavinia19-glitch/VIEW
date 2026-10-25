@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background-color: #0b0d17;
+    color: #e2e8f0;
+    font-family: var(--font-sans);
+    background-image: 
+      radial-gradient(70rem 35rem at 80% -10%, rgba(167, 139, 250, 0.12), transparent),
+      radial-gradient(60rem 30rem at 10% 0%, rgba(56, 189, 248, 0.10), transparent),
+      radial-gradient(40rem 20rem at 50% 100%, rgba(74, 222, 128, 0.05), transparent);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+.card-glow {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.card-glow:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(56, 189, 248, 0.1);
+}
+
+.neon-text-blue {
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+.neon-text-green {
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.5);
+}
+
+.neon-border-blue {
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0d17;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}

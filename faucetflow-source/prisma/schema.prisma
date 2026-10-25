@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL") // Supabase pooled connection (port 6543, ?pgbouncer=true)
+  directUrl = env("DIRECT_URL")   // Supabase direct connection (port 5432), used for migrations
+}
+
+// All crypto amounts are BigInt in the coin's smallest base unit
+// (satoshi, litoshi, etc.). Never use floats for money.
+
+enum Role {
+  USER
+  SUPPORT
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TxType {
+  FAUCET_CLAIM
+  DAILY_BONUS
+  PTC
+  OFFERWALL
+  SHORTLINK
+  REFERRAL_COMMISSION
+  PROMO
+  WITHDRAWAL
+  WITHDRAWAL_REFUND
+  ADMIN_ADJUSTMENT
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  passwordHash     String?
+  googleId         String?    @unique
+  emailVerifiedAt  DateTime?
+  role             Role       @default(USER)
+  status           UserStatus @default(ACTIVE)
+  referralCode     String     @unique
+  referredById     String?
+  referredBy       User?      @relation("Referrals", fields: [referredById], references: [id])
+  referrals        User[]     @relation("Referrals")
+  failedLogins     Int        @default(0)
+  lockedUntil      DateTime?
+  signupIp         String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  sessions     Session[]
+  balances     WalletBalance[]
+  claims       FaucetClaim[]
+  transactions Transaction[]
+  withdrawals  Withdrawal[]
+  tokens       EmailToken[]
+  promoUses    PromoRedemption[]
+
+  @@index([referredById])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  purpose   String // "verify" | "reset"
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model Coin {
+  symbol         String   @id // BTC, LTC, DOGE...
+  name           String
+  decimals       Int // base-unit exponent, e.g. 8 for BTC
+  enabled        Boolean  @default(true)
+  rewardMin      BigInt // base units
+  rewardMax      BigInt
+  claimIntervalS Int      @default(300)
+  dailyClaimCap  Int      @default(50)
+  minWithdrawal  BigInt
+  payoutNetwork  String?
+
+  balances    WalletBalance[]
+  claims      FaucetClaim[]
+  withdrawals Withdrawal[]
+}
+
+model WalletBalance {
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coin      String
+  coinRef   Coin   @relation(fields: [coin], references: [symbol])
+  available BigInt @default(0)
+  pending   BigInt @default(0)
+  lifetime  BigInt @default(0)
+
+  @@unique([userId, coin])
+}
+
+model FaucetClaim {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  coin      String
+  coinRef   Coin     @relation(fields: [coin], references: [symbol])
+  amount    BigInt
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, coin, createdAt])
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  coin           String
+  type           TxType
+  amount         BigInt // signed: credits positive, debits negative
+  // Unique key makes crediting the same event twice impossible.
+  idempotencyKey String   @unique
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Withdrawal {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  coin        String
+  coinRef     Coin             @relation(fields: [coin], references: [symbol])
+  amount      BigInt
+  address     String
+  status      WithdrawalStatus @default(PENDING)
+  providerRef String? // set only when the payout provider confirms
+  reviewedBy  String?
+  reviewNote  String?
+  requestKey  String           @unique // client idempotency key
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId, status])
+}
+
+model Referral {
+  id            String   @id @default(cuid())
+  referrerId    String
+  referredId    String   @unique
+  totalEarned   BigInt   @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([referrerId])
+}
+
+model Advertisement {
+  id           String   @id @default(cuid())
+  title        String
+  url          String
+  rewardCoin   String
+  rewardAmount BigInt
+  durationS    Int      @default(15)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model OfferwallCallback {
+  id          String   @id @default(cuid())
+  provider    String
+  externalId  String // provider's transaction id
+  userId      String
+  coin        String
+  amount      BigInt
+  rawPayload  Json
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([provider, externalId]) // replayed callbacks cannot credit twice
+}
+
+model PromoCode {
+  id         String            @id @default(cuid())
+  code       String            @unique
+  coin       String
+  amount     BigInt
+  maxUses    Int
+  usedCount  Int               @default(0)
+  expiresAt  DateTime?
+  active     Boolean           @default(true)
+  redemptions PromoRedemption[]
+}
+
+model PromoRedemption {
+  id      String    @id @default(cuid())
+  promoId String
+  promo   PromoCode @relation(fields: [promoId], references: [id])
+  userId  String
+  user    User      @relation(fields: [userId], references: [id])
+
+  @@unique([promoId, userId])
+}
+
+model AdminSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId, createdAt])
+}
+
+model RateLimit {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+}
